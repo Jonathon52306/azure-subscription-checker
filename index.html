@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.x.x/dist/alpine.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <title>azure subscription checker</title>
+  <style>
+    textarea {
+      margin: 0 10%;
+      width: 80%;
+    }
+
+    button {
+      margin: 0 10%;
+      width: 80%;
+      height: 40px;
+      border: 1px solid #000;
+      background: #fff;
+    }
+
+    .disabled,
+    .error {
+      color: red;
+    }
+
+    .enabled {
+      color: green;
+    }
+
+    .header {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .api {
+      margin: 10px 0;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <span>俺也部署一个:</span>
+    <a
+      href="https://vercel.com/new/git/external?repository-url=https%3A%2F%2Fgithub.com%2FJ3n5en%2Fazure-subscription-checker"><img
+        src="https://vercel.com/button" alt="俺也部署一个" /></a>
+  </div>
+  <div class="api">
+    <span>api:</span>
+    <span x-data="{prefix:location.href}" x-text="prefix+'/api/subscriptions?email=邮箱&password=密码'"></span>
+  </div>
+
+  <div x-data="accouts()">
+    <textarea x-bind:disabled="checking" placeholder="一行一个，邮箱和密码逗号(,)分开，如：
+1@1.com,2222
+2@2.com,55
+" x-model="accoutText" rows="10"></textarea>
+    <br>
+    <button x-on:click="check" x-bind:disabled="checking" x-text="[checking?'checking':'check']">check!</button>
+    <template x-for="item in checkedAccouts">
+      <div style="border-bottom: 1px solid black;padding: 15px 0;">
+        <span x-text="item.email + ':'"></span>
+        <span x-text="`共${item.subscriptions?.length??0}个订阅`"></span>
+        <p class="error" x-text="item.error"></p>
+        <template x-for="subscription in item.subscriptions">
+          <p x-bind:class="{ 
+            'disabled': subscription.state==='Disabled',
+            'enabled': subscription.state==='Enabled'
+          }" x-text="`${subscription.name} --- ${subscription.state}`"></p>
+        </template>
+      </div>
+    </template>
+
+  </div>
+
+  <script>
+    function accouts() {
+      return {
+        accoutText: "",
+        checking: false,
+        checkedAccouts: [],
+        async check() {
+          this.checking = true
+          this.checkedAccouts = []
+          try {
+            const accouts = this.accoutText.split(/\r?\n/).map(account => {
+              const [email, password] = account.split(',').map(i => i.trim())
+              if (!email || !password) {
+                return
+              }
+              return { email, password }
+            }).filter(Boolean)
+            const checkTasks = accouts.map(async ({ email, password }) => {
+              try {
+                const { data } = await axios({
+                  url: '/api/subscriptions',
+                  params: {
+                    email, password
+                  }
+                })
+                this.checkedAccouts.push({ email, subscriptions: data })
+              } catch (error) {
+                console.log(email)
+                this.checkedAccouts.push({ email, subscriptions: [], error: error?.response?.data?.detail || error })
+              }
+            })
+            await Promise.all(checkTasks)
+
+          } catch (error) {
+          }
+          this.checking = false
+        }
+      }
+    }
+  </script>
+</body>
+
+</html>
